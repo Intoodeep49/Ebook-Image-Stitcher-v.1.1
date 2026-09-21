@@ -11,7 +11,7 @@ def natural_sort_key(s):
 GLOBAL_TOP_HEADER_TRIM = 350     
 GLOBAL_LEFT_SIDEBAR_TRIM = 310   
 GLOBAL_RIGHT_SIDEBAR_TRIM = 210  
-DEFAULT_FOOTER_TRIM = 300        # Base trim to clear out standard bottom margins
+DEFAULT_FOOTER_TRIM = 300        # Safe base trim for all standard pages
 MAX_PDF_HEIGHT_LIMIT = 64000     # Safety window beneath absolute 65,500 pixel ceiling
 
 def clean_page_frame(img_path):
@@ -51,7 +51,7 @@ def process_folder(folder_path, folder_name, output_dir):
         _, max_val, _, max_loc = cv2.minMaxLoc(match_result)
         
         if max_val > 0.65:
-            match_y = max_loc[0] + search_start_y
+            match_y = max_loc[1] + search_start_y
             canvas_top = current_canvas[0:match_y, :]
             current_canvas = np.vstack((canvas_top, next_img))
         else:
@@ -78,7 +78,7 @@ def process_folder(folder_path, folder_name, output_dir):
             chunk_h = min(MAX_PDF_HEIGHT_LIMIT, full_height - current_y)
             page_chunk = final_rgb[current_y : current_y + chunk_h, :]
             
-            # Applying the extra 150px layout trim to the final page chunk if height limit is crossed
+            # YOUR SOLUTION: If it's the absolute end of a multi-page chapter document, apply an extra 150px cut
             if current_y + chunk_h >= full_height:
                 print(f" -> Applying extra 150px layout trim to the bottom of the final page chunk.")
                 p_h, p_w, _ = page_chunk.shape
