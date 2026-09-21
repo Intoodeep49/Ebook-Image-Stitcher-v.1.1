@@ -26,6 +26,12 @@ To take your snapshots correctly for this script:
 
 ---
 
+## 🔍 Known Output Limitations (v1.1)
+* **Minor Seam Misalignment:** In rare instances where textbook grid blocks or horizontal variable tables shift tracking resolutions during your scroll captures, the template engine might cause a minor spacing duplicate (approx. 1-2 lines overlapping) at specific seams. This does not disrupt text reading continuity.
+* **Multi-Page Footer Retention:** When a chapter section is long enough to trigger the dynamic height page splitter, the script will automatically trim the tracking page navigation bars from the absolute bottom boundary. Depending on your screenshot overlap depth, minor trailing elements of the baseline site utility layout may remain visible on the final page break.
+
+---
+
 ## ✨ Features
 * **Dynamic Batch Processing:** Process multiple chapter sections simultaneously by keeping your images organized inside sequential sub-folders.
 * **1-Click Shortcut Execution:** Run the entire script framework straight from your Windows Desktop using a custom application shortcut without opening the Command Prompt window.
