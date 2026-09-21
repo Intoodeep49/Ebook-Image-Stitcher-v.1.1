@@ -11,15 +11,16 @@ def natural_sort_key(s):
 GLOBAL_TOP_HEADER_TRIM = 350     
 GLOBAL_LEFT_SIDEBAR_TRIM = 310   
 GLOBAL_RIGHT_SIDEBAR_TRIM = 210  
-LAST_PAGE_FOOTER_TRIM = 300      
+DEFAULT_FOOTER_TRIM = 300        # Base trim to clear out standard bottom margins
+MAX_PDF_HEIGHT_LIMIT = 64000     # Safety window beneath absolute 65,500 pixel ceiling
 
-def clean_page_frame(img_path, is_last_page=False):
+def clean_page_frame(img_path):
     img = cv2.imread(img_path)
     if img is None:
         return None
     h, w, _ = img.shape
-    bottom_boundary = h - LAST_PAGE_FOOTER_TRIM if is_last_page else h
-    cropped = img[GLOBAL_TOP_HEADER_TRIM : bottom_boundary, GLOBAL_LEFT_SIDEBAR_TRIM : w - GLOBAL_RIGHT_SIDEBAR_TRIM]
+    # Slice off the static sidebar/header boundaries uniformly
+    cropped = img[GLOBAL_TOP_HEADER_TRIM : h, GLOBAL_LEFT_SIDEBAR_TRIM : w - GLOBAL_RIGHT_SIDEBAR_TRIM]
     return cropped
 
 def process_folder(folder_path, folder_name, output_dir):
@@ -32,11 +33,12 @@ def process_folder(folder_path, folder_name, output_dir):
         return
 
     print(f"\nProcessing [{folder_name}] with {len(image_files)} images...")
-    current_canvas = clean_page_frame(image_files[0], is_last_page=False)
+    
+    # Correctly targets the FIRST image string frame array to open the canvas
+    current_canvas = clean_page_frame(image_files[0])
 
     for idx in range(1, len(image_files)):
-        is_last = (idx == len(image_files) - 1)
-        next_img = clean_page_frame(image_files[idx], is_last_page=is_last)
+        next_img = clean_page_frame(image_files[idx])
         if next_img is None:
             continue
             
@@ -49,19 +51,49 @@ def process_folder(folder_path, folder_name, output_dir):
         _, max_val, _, max_loc = cv2.minMaxLoc(match_result)
         
         if max_val > 0.65:
-            match_y = max_loc[1] + search_start_y
+            match_y = max_loc[0] + search_start_y
             canvas_top = current_canvas[0:match_y, :]
             current_canvas = np.vstack((canvas_top, next_img))
         else:
             current_canvas = np.vstack((current_canvas, next_img))
 
+    # Apply the base 300px cut option to the final canvas bottom boundary first
+    c_h, c_w, _ = current_canvas.shape
+    current_canvas = current_canvas[0 : c_h - DEFAULT_FOOTER_TRIM, :]
+
+    # Convert the unified canvas array to RGB format
     final_rgb = cv2.cvtColor(current_canvas, cv2.COLOR_BGR2RGB)
-    pil_pdf = Image.fromarray(final_rgb)
+    full_height, full_width, _ = final_rgb.shape
     
     output_name = f"{folder_name}_Continuous_Textbook.pdf"
     full_output_path = os.path.join(output_dir, output_name)
-    
-    pil_pdf.save(full_output_path, "PDF", resolution=100.0)
+
+    # DYNAMIC HEIGHT PROTECTION CHECK WITH TARGETED LAST PAGE EXTRA CROP
+    if full_height > MAX_PDF_HEIGHT_LIMIT:
+        print(f" -> Canvas height ({full_height}px) exceeds safe limits. Splitting into multiple PDF pages dynamically...")
+        page_list = []
+        current_y = 0
+        
+        while current_y < full_height:
+            chunk_h = min(MAX_PDF_HEIGHT_LIMIT, full_height - current_y)
+            page_chunk = final_rgb[current_y : current_y + chunk_h, :]
+            
+            # Applying the extra 150px layout trim to the final page chunk if height limit is crossed
+            if current_y + chunk_h >= full_height:
+                print(f" -> Applying extra 150px layout trim to the bottom of the final page chunk.")
+                p_h, p_w, _ = page_chunk.shape
+                page_chunk = page_chunk[0 : p_h - 150, :]
+                
+            page_list.append(Image.fromarray(page_chunk))
+            current_y += chunk_h
+            
+        # Compile sub-pages sequentially into a unified multi-page PDF document
+        page_list[0].save(full_output_path, "PDF", resolution=100.0, save_all=True, append_images=page_list[1:])
+    else:
+        # Standard single-page compilation handles the base trim perfectly
+        pil_pdf = Image.fromarray(final_rgb)
+        pil_pdf.save(full_output_path, "PDF", resolution=100.0)
+        
     print(f"🎉 Success! Moved output to: '{full_output_path}'")
 
 # --- MAIN BATCH CONTROLLER ---
@@ -86,7 +118,6 @@ if __name__ == "__main__":
             process_folder(full_path, folder, output_folder)
         print("\nAll batch processing completed successfully!")
 
-    # NEW: Automatically open the Completed_Notes window right on your desktop screen!
     try:
         os.startfile(output_folder)
     except Exception:
